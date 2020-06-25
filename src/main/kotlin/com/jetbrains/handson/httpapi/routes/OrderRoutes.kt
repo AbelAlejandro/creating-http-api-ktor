@@ -10,51 +10,61 @@ import io.ktor.response.respond
 import io.ktor.response.respondText
 import io.ktor.routing.*
 
-fun Route.orderRouting() {
-    route("/order") {
-        get{
-            if(orderStorage.isNotEmpty()) {
-                call.respond(orderStorage)
-            } else {
-                call.respondText(
-                    "No orders found",
-                    status = HttpStatusCode.NotFound
-                )
-            }
+fun Route.createOrderRoute() {
+    post {
+        val order =  call.receive<Order>()
+        orderStorage.add(order)
+        call.respondText(
+            "Order stored correctly",
+            status = HttpStatusCode.Accepted
+        )
+    }
+}
+
+fun Route.deleteOrderRoute() {
+    delete("{number}") {
+        val number = call.parameters["number"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
+        if(orderStorage.removeIf { it.number == number }) {
+            call.respondText("Order removed correctly", status = HttpStatusCode.Accepted)
+        } else {
+            call.respondText("Not found", status = HttpStatusCode.NotFound)
         }
-        get("{number}") {
-            val number = call.parameters["number"] ?: return@get call.respondText(
-                "Missing or malformed order #",
-                status = HttpStatusCode.BadRequest
-            )
-            val order =
-                orderStorage.find{ it.number == number } ?: return@get call.respondText(
-                    "No order with number $number",
-                    status = HttpStatusCode.NotFound
-                )
-            call.respond(order)
+    }
+}
+fun Route.listOrdersRoute() {
+    get("/order") {
+        if (orderStorage.isNotEmpty()) {
+            call.respond(orderStorage)
         }
-        post {
-            val order =  call.receive<Order>()
-            orderStorage.add(order)
-            call.respondText(
-                "Order stored correctly",
-                status = HttpStatusCode.Accepted
-            )
-        }
-        delete("{number}") {
-            val number = call.parameters["number"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
-            if(orderStorage.removeIf { it.number == number }) {
-                call.respondText("Order removed correctly", status = HttpStatusCode.Accepted)
-            } else {
-                call.respondText("Not found", status = HttpStatusCode.NotFound)
-            }
-        }
+    }
+}
+fun Route.getOrderRoute() {
+    get("/order/{id}") {
+        val id = call.parameters["id"] ?: return@get call.respondText("Bad Request", status = HttpStatusCode.BadRequest)
+        val order = orderStorage.find { it.number == id } ?: return@get call.respondText(
+            "Not Found",
+            status = HttpStatusCode.NotFound
+        )
+        call.respond(order)
+    }
+}
+
+fun Route.totalizeOrderRoute() {
+    get("/order/{id}/total") {
+        val id = call.parameters["id"] ?: return@get call.respondText("Bad Request", status = HttpStatusCode.BadRequest)
+        val order = orderStorage.find { it.number == id } ?: return@get call.respondText(
+            "Not Found",
+            status = HttpStatusCode.NotFound
+        )
+        val total = order.contents.map { it.price * it.amount }.sum()
+        call.respond(total)
     }
 }
 
 fun Application.registerOrderRoutes() {
     routing {
-        orderRouting()
+        listOrdersRoute()
+        getOrderRoute()
+        totalizeOrderRoute()
     }
 }
